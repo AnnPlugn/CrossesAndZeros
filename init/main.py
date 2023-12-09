@@ -5,8 +5,6 @@ from colorama import init, Fore, Back, Style
 stor = int(input("Введите сторону доски: "))
 numb = int(input("Количество элементов: "))
 
-from tabulate import tabulate
-
 def print_board(board):
     table_data = []
     field = ['XO'] + [str(i) for i in range(1, stor+1)]
