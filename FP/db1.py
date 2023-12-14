@@ -1,87 +1,101 @@
-from tabulate import tabulate
-from colorama import Fore, Style
-import db1
-import universal1
+import openpyxl
+import pandas as pd
+from openpyxl.utils import get_column_letter
+from openpyxl.utils.dataframe import dataframe_to_rows
 
-stor = int(input("Введите сторону доски: "))
-numb = int(input("Количество элементов: "))
-arr_x = []
-arr_o = []
+import pymysql.cursors
 
-def print_board(board):
-    table_data = []
-    field = ['XO'] + [str(i) for i in range(1, stor+1)]
-    for i, row in enumerate(board, start=1):
-        table_data.append([Fore.GREEN + str(i) + Style.RESET_ALL] + row)
-    headers = [Fore.GREEN + cell + Style.RESET_ALL for cell in field]
-    table_with_headers = [headers] + table_data
-    formatted_table = tabulate(table_with_headers, tablefmt="fancy_grid")
-    print(formatted_table)
+_name_db = input("Введите имя базы данных: ")
+_name_tb = input("Введите имя таблицы: ")
+
+
+def check_db():
+    try:
+        conn = pymysql.connect(host="localhost",
+                               user="root",
+                               password="root",
+                               database=_name_db,
+                               cursorclass=pymysql.cursors.Cursor)
+        print("Вы подключились")
+    except pymysql.err.MySQLError:
+        conn = pymysql.connect(host="localhost",
+                               user="root",
+                               password="root",
+                               cursorclass=pymysql.cursors.Cursor)
+
+        cursor = conn.cursor()
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {_name_db}")
+        print("Вы создали БД")
+    return conn
+
+
+def con_db():
+    return pymysql.connect(host="localhost",
+                           user="root",
+                           password="root",
+                           database=_name_db,
+                           cursorclass=pymysql.cursors.Cursor)
+
+
+def check_table():
+    connection = con_db()
+    cursor = connection.cursor()
+    try:
+        cursor.execute(f"SELECT * FROM {_name_tb}")
+        print("Таблица подключена")
+    except pymysql.err.MySQLError:
+        cursor.execute(
+            f"CREATE TABLE IF NOT EXISTS {_name_tb} (id bigint NOT NULL AUTO_INCREMENT,player_X varchar(100) NOT NULL,player_O varchar(100) NOT NULL, history_x varchar(1000) NOT NULL, history_o varchar(1000) NOT NULL, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;")
+    connection.commit()
+    print("Таблица создана и подключена")
     return
 
 
-def check_win(board, symbol):
-    for i in range(numb):
-        if all([board[i][j] == symbol for j in range(numb)]) or all(
-                [board[j][i] == symbol for j in range(numb)]):
-            return True
-        if all([board[i][i] == symbol for i in range(numb)]) or all(
-                [board[i][numb - 1 - i] == symbol for i in range(numb)]):
-            return True
-    return False
+def save_result(x, o, arr_x, arr_o):
+    connection = con_db()
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"INSERT INTO " + _name_tb + f" (player_X, player_O, history_x, history_o) VALUES (%s, %s, %s, %s)",
+            (str(x), str(o), str(arr_x), str(arr_o)))
+        connection.commit()
 
-
-def check_valid(board, row, col):
-    return 0 <= row < stor and 0 <= col < stor and board[row][col] == '.'
-
-
-def play_game():
-    board = [['.'] * stor for _ in range(stor)]
-    players = ['X', 'O']
-    turn = 0
-
-    while True:
-        print_board(board)
-        player_symbol = players[turn]
-        print(f"Ход игрока {player_symbol}")
-
-        row = int(input("Выберите номер строки (от 0 до %s): " % str(stor-1)))
-        col = int(input("Выберите номер столбца (от 0 до %s): " % str(stor-1)))
-
-        if player_symbol == 'X':
-            arr_x.append([row, col])
-        else:
-            arr_o.append([row, col])
-        if check_valid(row, col):
-            board[row][col] = player_symbol
-            if check_win(player_symbol):
-                print_board()
-                print(f"Игрок {player_symbol} победил!")
-                if player_symbol == 'X':
-                    db1.save_result(str(10), str(0), arr_x, arr_o)
-                else:
-                    db1.save_result(str(0), str(10), arr_x, arr_o)
-                return True
-            elif all(all(cell != '.' for cell in row) for row in board):
-                print_board()
-                print("Ничья!")
-                db1.save_result(str(5), str(5), arr_x, arr_o)
-                return True
-        return False
-
-def main():
-    run = True
-    commands = """==========================================================================
-1. Создать БД, результат сохранить в MySQL.
-2. Создать таблицу, результат сохранить в MySQL.
-3. Начать игру, победитель получает 10 очков.
-4. Сохранить все данные из MySQL в Excel.
-5. Завершить"""
-    while run:
-        run = universal1.uni(commands,
-                            db1.check_db, db1.check_table, play_game,
-                            db1.save_to_excel)
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT * FROM {_name_tb}")
+        print(cursor.fetchall()[-1])
+    except pymysql.err.DataError as e:
+        print('Ошибка с данными:', e)
+    except pymysql.err.DatabaseError as e:
+        print(e)
     return
 
-if __name__ == '__main__':
-    main()
+
+def save_to_excel():
+    connection = con_db()
+    try:
+        new_df = pd.read_sql("SELECT * FROM " + _name_tb, connection)
+        wb = openpyxl.Workbook()
+        ws = wb.active
+
+        for r in dataframe_to_rows(new_df, index=False, header=True):
+            ws.append(r)
+
+        for column in ws.columns:
+            max_length = 0
+            column_letter = get_column_letter(column[0].column)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except TypeError:
+                    pass
+
+            adjusted_width = (max_length + 2) * 1.2
+            ws.column_dimensions[column_letter].width = adjusted_width
+        file1 = input("Введите имя файла с расширением xlsx: ")
+        wb.save(file1)
+        print(new_df)
+
+    except pymysql.err.DatabaseError as e:
+        print(e)
+    return
