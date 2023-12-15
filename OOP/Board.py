@@ -7,7 +7,7 @@ arr_o = []
 class Board:
     def __init__(self, side_length):
         self.size = side_length
-        self.numb = int(input("Количество элементов: "))
+        self.numb = min(int(input("Количество элементов: ")), self.size)
         self.board = [['.'] * self.size for _ in range(self.size)]
 
     def print_board(self):

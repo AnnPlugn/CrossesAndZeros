@@ -4,7 +4,7 @@ import db1
 import universal1
 
 stor = int(input("Введите сторону доски: "))
-numb = int(input("Количество элементов: "))
+numb = min(int(input("Количество элементов: ")), stor)
 arr_x = []
 arr_o = []
 
