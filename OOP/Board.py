@@ -1,7 +1,7 @@
 from tabulate import tabulate
 from colorama import init, Fore, Back, Style
 import os
-import db
+import DB
 arr_x = []
 arr_o = []
 class Board:
@@ -50,14 +50,14 @@ class Board:
                 self.print_board()
                 print(f"Игрок {player_symbol} победил!")
                 if player_symbol == 'X':
-                    db.save_result(str(10), str(0), arr_x, arr_o)
+                    DB.db.save_result(str(10), str(0), arr_x, arr_o)
                 else:
-                    db.save_result(str(0), str(10), arr_x, arr_o)
+                    DB.db.save_result(str(0), str(10), arr_x, arr_o)
                 return True
             elif all(all(cell != '.' for cell in row) for row in self.board):
                 self.print_board()
                 print("Ничья!")
-                db.save_result(str(5), str(5), arr_x, arr_o)
+                DB.db.save_result(str(5), str(5), arr_x, arr_o)
                 return True
         return False
 
